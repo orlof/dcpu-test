@@ -17,8 +17,8 @@
     set c, 0
 
     :loop
-        ife i, video_ram + 384
-            set pc, loop
+        ife i, video_ram__end
+            set pc, press_anykey
 
         ; foreground color
         set a, j
@@ -33,6 +33,31 @@
         set [i], a
 
         sti pc, loop
+
+:press_anykey
+    set a, 1
+    hwi [keyboard]
+
+    ife c, 0
+        set pc, press_anykey
+
+    set i, font_ram
+    set a, [i]
+:font__loop
+    sti [i], [i+1]
+    ifn i, font_ram__end-1
+        set pc, font__loop
+    set [i], a
+
+    set i, palette_ram
+    set a, [i]
+:palette__loop
+    sti [i], [i+1]
+    ifn i, palette_ram__end-1
+        set pc, palette__loop
+    set [i], a
+
+    set pc, press_anykey
 
 ;----------------------------------------------------------------
 :detect_hardware
@@ -86,6 +111,7 @@
     dat 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
     dat 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
     dat 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+:video_ram__end
 
 :font_ram
     dat 0xB79E, 0x388E, 0x722C, 0x75F4, 0x19BB, 0x7F8F, 0x85F9, 0xB158
@@ -120,7 +146,9 @@
     dat 0x043E, 0x4400, 0x3C40, 0x7C00, 0x1C60, 0x1C00, 0x7C30, 0x7C00
     dat 0x6C10, 0x6C00, 0x4C50, 0x3C00, 0x6454, 0x4C00, 0x0836, 0x4100
     dat 0x0077, 0x0000, 0x4136, 0x0800, 0x0201, 0x0201, 0x0205, 0x0200
+:font_ram__end
 
 :palette_ram
     dat 0x0000, 0x0111, 0x0222, 0x0333, 0x0444, 0x0555, 0x0666, 0x0777
     dat 0x0888, 0x0999, 0x0aaa, 0x0bbb, 0x0ccc, 0x0ddd, 0x0eee, 0x0fff
+:palette_ram__end
