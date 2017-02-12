@@ -1,0 +1,245 @@
+set push, TEXT_START
+set push, TEXT_END
+    jsr compress
+
+:halt
+    set pc, halt
+
+:TEXT_START DAT "123123"
+:TEXT_END
+
+;----------------------------------------------------------------
+; extern handle *compress(word *start, word *end)
+;----------------------------------------------------------------
+:match_limit    DAT     0
+:best_match_len DAT     0
+:best_match_pos DAT     0
+
+:compress
+    set push, a     ; match start
+    set push, b     ; cpos
+    set push, c     ; match limit
+    set push, x     ; best match len
+    set push, y     ; best match pos
+    set push, z     ; fp
+    set push, i     ; advance from cpos
+    set push, j     ; advance from match pos
+
+    set z, sp
+    add z, 9        ; *end
+
+    set b, [z + 1]
+
+    set push, 0
+    set push, [b]
+
+    add b, 1
+
+:search_match
+    set x, 1
+
+    set a, b
+
+    sub a, 255
+    ifu a, [z+1]
+        set a, [z+1]
+
+:search_match_position
+    set i, b
+    set j, a
+
+    ; calculate match limit (end or b+255)
+    set c, b
+    add c, 255
+    ifn ex, 0
+        set c, 0xffff
+    ifg c, [z]
+        set c, [z]
+
+:loop
+    ife [i], [j]
+        ifn i, c
+            sti pc, loop
+
+    sub j, a
+
+    ifg j, x
+        jsr set_best_match
+
+    ife i, c
+        ; best possible match found
+        set pc, match_found
+
+    add a, 1
+    ifn a, b
+        ; check next start position
+        set pc, search_match_position
+
+:match_found
+    ifg x, 1
+        set pc, add_match
+
+    set push, 0
+    set push, [b]
+
+:finish_loop
+    add b, x
+    ifn b, [z]
+        set pc, search_match
+
+:finalizing
+    set c, 0
+    set a, z
+    sub a, 9
+
+:calculate_ratio
+    ife [a], 0
+        add c, 1
+
+    sub a, 2
+    ifg a, sp
+        set pc, calculate_ratio
+
+    set push, c
+    ifb c, 15
+        add [sp], 1
+    shr c, 4
+    add [sp], c
+
+    set c, [z]
+    sub c, [z+1]
+    ifg c, pop
+        ; original is bigger
+        set pc, return_compressed
+
+    set [z], 0
+
+:cleanup
+    sub z, 9
+    set sp, z
+
+    set j, pop
+    set i, pop
+    set z, pop
+    set y, pop
+    set x, pop
+    set c, pop
+    set b, pop
+    set a, pop
+
+    set pc, pop
+
+:return_compressed
+    set j, [z+1]
+    add j, 1
+
+    set a, z
+    sub a, 9
+
+
+
+
+    set push, j
+    sub [sp], [z+1]
+
+    set j, [z+1]
+    set [j], pop
+    set pc, cleanup
+
+:add_match
+    set push, x
+    shl [sp], 8
+    set push, b
+    sub [sp], y
+    bor [sp], pop
+
+    set pc, finish_loop
+
+;---------------------------
+:set_best_match
+    set x, j
+    set y, a
+    set pc, pop
+;---------------------------
+
+:bit_mask    dat 0x8000
+
+; a: 0xffff or 0x0000
+; j: dest addr
+:bit_read
+    set a, 0
+    ifb [j], [bit_mask]
+        set a, 0xffff
+
+    set pc, bit_advance
+
+:bit_write
+    and a, [bit_mask]
+    bor [j], a
+
+:bit_advance
+    shr [bit_mask], 1
+    ife ex, 0
+        set pc, pop
+
+    set [bit_mask], 0x8000
+    add j, 1
+
+    set pc, pop
+
+:hbyte_write
+    set a, 0
+    set push, [bit_mask]
+:nlz
+    ifb 0x8000, [sp]
+        set pc, nlz_exit
+    shl [sp], 1
+    set pc, nlz
+
+:nlz_exit
+
+
+:lbyte_write
+    ifg [bit_mask], 0x00ff
+        set pc, high_low
+
+
+:high_low
+    set push, a
+    shl [sp], 8
+
+
+:word_read
+    set push, [bit_mask]
+    set push, [sp]
+    sub [sp], 1
+    bor [sp], pop
+
+    set a, [sp]
+    and a, [j]
+
+    add j, 1
+
+    xor [sp], 0xffff
+    and [sp], [j]
+    bor a, pop
+
+    set pc, pop
+
+:word_write
+    set push, [bit_mask]
+    set push, [sp]
+    sub [sp], 1
+    bor [sp], pop
+    set push, [sp]
+
+    and [sp], a
+    bor [j], pop
+
+    add j, 1
+
+    xor [sp], 0xffff
+    and [sp], a
+    bor [j], pop
+
+    set pc, pop
